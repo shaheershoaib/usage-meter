@@ -1,0 +1,16 @@
+{
+  "name": "usage-meter",
+  "owner": {
+    "name": "Shaheer Shoaib"
+  },
+  "metadata": {
+    "description": "usage-meter, a Claude Code mod by Shaheer Shoaib: live usage above the prompt and one-click usage-credit requests to your admins."
+  },
+  "plugins": [
+    {
+      "name": "usage-meter",
+      "source": "./",
+      "description": "A live usage meter above the prompt (5-hour, weekly and usage-credit bars) with a button that sends a usage-credit request to your organization admins."
+    }
+  ]
+}

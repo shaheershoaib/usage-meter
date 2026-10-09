@@ -1,0 +1,12 @@
+{
+  "name": "usage-meter",
+  "version": "0.8.0",
+  "description": "An always-visible usage meter above the prompt with live 5-hour, weekly and usage-credit bars that climb smoothly as usage rises, and a Request more usage button that sends a usage-credit request to your organization admins, plus a /more-usage command.",
+  "author": {
+    "name": "Shaheer Shoaib"
+  },
+  "homepage": "https://github.com/shaheershoaib/usage-meter",
+  "repository": "https://github.com/shaheershoaib/usage-meter",
+  "license": "Apache-2.0",
+  "types": "./types/index.d.ts"
+}
