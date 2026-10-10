@@ -74,14 +74,39 @@ const withTimeout = <T,>($: EngineInterface, work: Promise<T>, ms: number) =>
 let lastRead = 0
 let isReading = false
 let activeAt = 0
-// The request to the admins: idle, asking you to confirm, sending, sent, or already pending.
-let asking: 'idle' | 'confirm' | 'sending' | 'sent' | 'pending' = 'idle'
+// The request to the admins: idle (ready to ask, again too), asking you to confirm, or sending.
+let asking: 'idle' | 'confirm' | 'sending' = 'idle'
+// The last request, a small status beside the button. Kept in the store, so one sent from any
+// session shows in every session.
+const LAST_KEY = 'last-request'
+type LastRequest = { at: number; outcome: 'sent' | 'pending' }
+let lastRequest: LastRequest | null = null
+let hasLoadedLast = false
+const asLast = (value: unknown): LastRequest | null => {
+  const v = value as Partial<LastRequest> | null
+  return v && typeof v.at === 'number' && (v.outcome === 'sent' || v.outcome === 'pending') ? { at: v.at, outcome: v.outcome } : null
+}
+const remember = async ($: EngineInterface, outcome: LastRequest['outcome']) => {
+  lastRequest = { at: Date.now(), outcome }
+  await $.store.set(LAST_KEY, lastRequest).catch(() => undefined)
+}
 // When the numbers on screen were read, and the newest shared reading this session has taken.
 let goodAt = 0
 let adoptedAt = 0
 let redrawQueued = false
 
 const clip = (text: string, size: number) => (text.length > size ? `${text.slice(0, size - 1)}…` : text)
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// "2:14 PM" today, "Oct 9" before that.
+const whenOf = (at: number, now: number) => {
+  const d = new Date(at)
+  if (d.toDateString() !== new Date(now).toDateString()) {
+    return `${MONTHS[d.getMonth()]} ${d.getDate()}`
+  }
+  const h = d.getHours()
+
+  return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
 
 // A write that changes nothing still redraws everything that reads it, so none is made.
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -189,6 +214,11 @@ const adopt = async ($: EngineInterface) => {
     await apply($, cached)
     await setFailure($, null)
   }
+  const last = asLast(await $.store.get(LAST_KEY))
+  if (last && (last.at !== lastRequest?.at || last.outcome !== lastRequest.outcome)) {
+    lastRequest = last
+    $.ui.invalidate('ui.render')
+  }
 }
 
 const say = ($: EngineInterface, text: string) => {
@@ -220,7 +250,8 @@ const fileRequest = async ($: EngineInterface): Promise<string> => {
     const withOrg = { ...headers, 'x-organization-uuid': org }
     const mine = await withTimeout($, $.http.fetch(mineUrl(org), { auth: auth.handle, headers: withOrg }), FETCH_TIMEOUT_MS)
     if (mine.ok && pendingOf(mine.text) > 0) {
-      asking = 'pending'
+      asking = 'idle'
+      await remember($, 'pending')
 
       return say($, "You've already sent a usage credit request to your admin. It's still pending.")
     }
@@ -241,7 +272,8 @@ const fileRequest = async ($: EngineInterface): Promise<string> => {
 
       return say($, reasonOf(sent.text) ?? `Your admin request was not accepted (HTTP ${sent.status}). Nothing was sent; try again later.`)
     }
-    asking = 'sent'
+    asking = 'idle'
+    await remember($, 'sent')
 
     return say($, 'Request sent to your admin for usage credits.')
   } catch (cause) {
@@ -310,6 +342,10 @@ export const register: Register = on => {
       return below
     }
 
+    if (!hasLoadedLast) {
+      hasLoadedLast = true
+      lastRequest = asLast(await $.store.get(LAST_KEY)) ?? lastRequest
+    }
     const ui = $.ui.resolve(e)
     const { Box, Button, Link, Text } = ui
     const tiles: Tile[] = []
@@ -390,15 +426,27 @@ export const register: Register = on => {
         </Box>
         <Box flexDirection="column" gap={1} alignItems="flex-start">
           {asking === 'idle' && (
-            <Button
-              key="request"
-              variant={isLow ? 'primary' : 'secondary'}
-              label="Request more usage"
-              onPress={() => {
-                asking = 'confirm'
-                $.ui.invalidate('ui.render')
-              }}
-            />
+            <Box gap={1} alignItems="center">
+              <Button
+                key="request"
+                variant={isLow ? 'primary' : 'secondary'}
+                label="Request more usage"
+                onPress={() => {
+                  asking = 'confirm'
+                  $.ui.invalidate('ui.render')
+                }}
+              />
+              {lastRequest && (
+                <Box gap={1}>
+                  <Text color={lastRequest.outcome === 'sent' ? '#34d399' : '#fbbf24'}>{lastRequest.outcome === 'sent' ? '✓' : '●'}</Text>
+                  <Text dimColor>
+                    {lastRequest.outcome === 'sent'
+                      ? `Request sent ${whenOf(lastRequest.at, now)}`
+                      : `Pending with your admin (checked ${whenOf(lastRequest.at, now)})`}
+                  </Text>
+                </Box>
+              )}
+            </Box>
           )}
           {asking === 'confirm' && (
             <Box gap={1} alignItems="center">
@@ -415,8 +463,6 @@ export const register: Register = on => {
             </Box>
           )}
           {asking === 'sending' && <Text dimColor>Sending your request…</Text>}
-          {asking === 'sent' && <Text color="#34d399">✓ Request sent to your admin</Text>}
-          {asking === 'pending' && <Text color="#fbbf24">Request pending with your admin</Text>}
           <Box gap={1}>
             <Button
               key="copy"

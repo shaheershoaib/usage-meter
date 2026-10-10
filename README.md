@@ -38,7 +38,7 @@ Claude Code is still rolling out mods for marketplace plugins. If nothing appear
 ## What it does
 
 - **5-hour, Weekly and Credits** bars ease up as your usage rises, refreshed after each turn and every minute while you work. Every open session shares one lookup, so they never hammer Anthropic's usage endpoint.
-- **Request more usage** asks you to confirm, then sends a usage-credit request to your organization's admins (Team and Enterprise). It checks first, so a request that is already pending is never sent twice. `/more-usage` does the same from the prompt.
+- **Request more usage** asks you to confirm, then sends a usage-credit request to your organization's admins (Team and Enterprise). It checks first, so a request that is already pending is never sent twice. The button stays, so you can ask again any time, and your last request shows beside it as a small status (in every session). `/more-usage` does the same from the prompt.
 - **Copy admin note** puts a ready-to-send message about your usage on the clipboard.
 
 ## Good to know
